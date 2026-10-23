@@ -400,11 +400,21 @@ def get_openapi_path(
                 # doing this inspection tricks, that would probably be in the future
                 # TODO: probably make status_code a default class attribute for all
                 # responses in Starlette
-                response_signature = inspect.signature(current_response_class.__init__)
-                status_code_param = response_signature.parameters.get("status_code")
-                if status_code_param is not None:
-                    if isinstance(status_code_param.default, int):
+                status_code = "200"
+                # Subclasses can override __init__ with *args/**kwargs and delegate
+                # to the parent, so check each class that defines its own __init__
+                for response_class in current_response_class.__mro__:
+                    if "__init__" not in vars(response_class):
+                        continue
+                    response_signature = inspect.signature(
+                        vars(response_class)["__init__"]
+                    )
+                    status_code_param = response_signature.parameters.get("status_code")
+                    if status_code_param is not None and isinstance(
+                        status_code_param.default, int
+                    ):
                         status_code = str(status_code_param.default)
+                        break
             operation.setdefault("responses", {}).setdefault(status_code, {})[
                 "description"
             ] = route.response_description
